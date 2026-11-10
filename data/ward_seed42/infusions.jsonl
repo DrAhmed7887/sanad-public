@@ -1,0 +1,4 @@
+{"bed": 2, "dose": 50, "drug": "propofol", "encounter": "E02-1120", "end": "2026-11-21T07:00:00+01:00", "start": "2026-11-20T01:00:00+01:00", "unit": "mcg/kg/min"}
+{"bed": 3, "dose": 8, "drug": "norepinephrine", "encounter": "E03-1120", "end": "2026-11-21T07:00:00+01:00", "start": "2026-11-20T01:00:00+01:00", "unit": "mcg/min"}
+{"bed": 3, "dose": 0.03, "drug": "vasopressin", "encounter": "E03-1120", "end": "2026-11-21T07:00:00+01:00", "start": "2026-11-20T01:00:00+01:00", "unit": "units/min"}
+{"bed": 14, "dose": 0.08, "drug": "norepinephrine", "encounter": "E14-1120", "end": "2026-11-21T07:00:00+01:00", "start": "2026-11-20T01:00:00+01:00", "unit": "mcg/kg/min"}

@@ -1,0 +1,32 @@
+data checks for ward_seed42 (rules v3), 29 checks
+PASS  DC01  24 h of observations for an all-day bed (289 points)  — 289
+PASS  DC02  bed 1 FiO2 in both units at night, all normalise to 0.40
+PASS  DC03  bed 1 pre-shift FiO2 0.50 / PEEP 8 (R1 b lookback)
+PASS  DC04  SAT times: bed 1 20:15, 3 19:30, 12 21:00, 14 19:30, 15 18:30; none for 2, 4
+PASS  DC05  every check has the required fields
+PASS  DC06  bed 3 checks record haemodynamics 'md_review_requested'; vasopressin present
+PASS  DC07  bed 4 SpO2 96→95→93→92 at 02:05/02:10/02:15/02:20; FiO2 0.50 and PEEP 7 at 02:20
+PASS  DC08-4  bed 4 72-h net as known = +300 ml  — got +300
+PASS  DC08-5  bed 5 72-h net as known = +3200 ml  — got +3200
+PASS  DC08-7  bed 7 72-h net as known = +800 ml  — got +800
+PASS  DC08-11  bed 11 72-h net as known = +1000 ml  — got +1000
+PASS  DC08-13A  bed 13A 72-h net as known = +2400 ml  — got +2400
+PASS  DC09  bed 5 has 2 duplicate IDs; naive sum differs
+PASS  DC10  bed 6 known net +1600 at 01:55 and +2600 at 02:00 (late entry)  — 1600 / 2600
+PASS  DC11  bed 6 at 01:00: FiO2 0.55, PEEP 10, SpO2 93
+PASS  DC12  bed 7 poor SpO2 only at 03:00 and 03:01:30
+PASS  DC13  bed 8 tag 04:00-04:05; bed 16 tag 03:00-03:10
+PASS  DC14  bed 9: last obs 00:55, next 02:30  — 00:50,00:55,02:30,02:35
+PASS  DC15  bed 10 checks 23:00, 01:50 (documented 01:52), 03:00; ack 01:12
+PASS  DC16  bed 11 VV-ECMO; bed 12 DNR
+PASS  DC17  bed 13: encounter A ends 22:55, B starts 23:15; distinct encounter IDs on tasks
+PASS  DC18  bed 13B checks 23:40, 01:35, 03:30, 05:25; net +300
+PASS  DC19  bed 14 weight missing and norepinephrine in mcg/kg/min
+PASS  DC20  bed 15 deferral at 20:45 until 01:30
+PASS  DC21  bed 16 SpO2 96, 82, 82, 96 at 02:55/03:00/03:05/03:10 (good quality)
+PASS  DC22  bed 17 last urine output 10:00 on 20 Nov; net +4250 at 19:00 and +2500 at 06:55 (gross CRRT ignored)  — 4250 / 2500
+PASS  DC23  all other beds have urine output within every 6-h night window
+PASS  DC24  every timestamp has a +01:00 offset
+PASS  DC25  all patients flagged fictional
+
+all data checks passed

@@ -1,0 +1,41 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: No personal or secret material (file names only, never the matching text)
+        env:
+          PERSONAL_PATTERNS: ${{ secrets.PERSONAL_PATTERNS }}  # personal identifiers live in a repo secret, never in the tree
+        run: |
+          cp .github/secret-patterns.txt "$RUNNER_TEMP/patterns.txt"
+          if [ -n "$PERSONAL_PATTERNS" ]; then printf '%s\n' "$PERSONAL_PATTERNS" >> "$RUNNER_TEMP/patterns.txt"; else echo "::warning::PERSONAL_PATTERNS secret not set; personal identifiers not scanned"; fi
+          set +e
+          hits=$(grep -rl -i -E -f "$RUNNER_TEMP/patterns.txt" --exclude-dir=.git --exclude-dir=__pycache__ --exclude=secret-patterns.txt .)
+          rc=$?
+          set -e
+          if [ $rc -eq 0 ]; then echo "secret-like content in:"; echo "$hits"; exit 1; fi
+          if [ $rc -ne 1 ]; then echo "secret scan error (grep exit $rc)"; exit 1; fi
+          echo "no secret-like content"
+      - name: Data is reproducible (seed 42 regenerates byte-identical files)
+        run: |
+          python3 -I data/generate.py --seed 42 --out /tmp/ward
+          diff -r data/ward_seed42 /tmp/ward
+      - name: Data checks against the scenarios
+        run: python3 -I data/check_data.py
+      - name: Tests (must exist and pass)
+        run: |
+          pip install -q -r requirements-dev.txt
+          python3 -m playwright install --with-deps chromium
+          test -n "$(ls tests/test_*.py 2>/dev/null)" || { echo "no tests found"; exit 1; }
+          python3 -m pytest -q

@@ -1,0 +1,233 @@
+{
+ "meta": {
+  "seed": 42,
+  "rules_baseline": "v3",
+  "data_start": "2026-11-20T07:00:00+01:00",
+  "night_start": "2026-11-20T19:00:00+01:00",
+  "night_end": "2026-11-21T07:00:00+01:00",
+  "step_minutes": 5,
+  "beds": 17,
+  "encounters": 18,
+  "note": "Fictional patients. Synthetic data only. Not for clinical use."
+ },
+ "patients": [
+  {
+   "bed": 1,
+   "encounter": "E01-1120",
+   "age": 64,
+   "sex": "M",
+   "weight_kg": 82,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "sbt_candidate",
+   "fictional": true
+  },
+  {
+   "bed": 2,
+   "encounter": "E02-1120",
+   "age": 58,
+   "sex": "F",
+   "weight_kg": 70,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "sedated_no_sat",
+   "fictional": true
+  },
+  {
+   "bed": 3,
+   "encounter": "E03-1120",
+   "age": 71,
+   "sex": "M",
+   "weight_kg": 90,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "pressor_unconfirmed",
+   "fictional": true
+  },
+  {
+   "bed": 4,
+   "encounter": "E04-1120",
+   "age": 77,
+   "sex": "F",
+   "weight_kg": 66,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "flash_oedema",
+   "fictional": true
+  },
+  {
+   "bed": 5,
+   "encounter": "E05-1120",
+   "age": 52,
+   "sex": "M",
+   "weight_kg": 95,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "fluid_positive_stable",
+   "fictional": true
+  },
+  {
+   "bed": 6,
+   "encounter": "E06-1120",
+   "age": 69,
+   "sex": "F",
+   "weight_kg": 74,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "fluid_and_oxygen",
+   "fictional": true
+  },
+  {
+   "bed": 7,
+   "encounter": "E07-1120",
+   "age": 45,
+   "sex": "M",
+   "weight_kg": 88,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "probe_artefact",
+   "fictional": true
+  },
+  {
+   "bed": 8,
+   "encounter": "E08-1120",
+   "age": 60,
+   "sex": "F",
+   "weight_kg": 63,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "tagged_preoxygenation",
+   "fictional": true
+  },
+  {
+   "bed": 9,
+   "encounter": "E09-1120",
+   "age": 55,
+   "sex": "M",
+   "weight_kg": 79,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "feed_outage",
+   "fictional": true
+  },
+  {
+   "bed": 10,
+   "encounter": "E10-1120",
+   "age": 73,
+   "sex": "F",
+   "weight_kg": 68,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "missed_check",
+   "fictional": true
+  },
+  {
+   "bed": 11,
+   "encounter": "E11-1120",
+   "age": 39,
+   "sex": "M",
+   "weight_kg": 85,
+   "code_status": "full",
+   "pathways": [
+    "vv_ecmo"
+   ],
+   "anuric": false,
+   "scenario": "ecmo",
+   "fictional": true
+  },
+  {
+   "bed": 12,
+   "encounter": "E12-1120",
+   "age": 81,
+   "sex": "F",
+   "weight_kg": 60,
+   "code_status": "dnr",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "dnr_sbt_candidate",
+   "fictional": true
+  },
+  {
+   "bed": 13,
+   "encounter": "E13A-1120",
+   "age": 66,
+   "sex": "M",
+   "weight_kg": 77,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "reassign_A",
+   "fictional": true
+  },
+  {
+   "bed": 13,
+   "encounter": "E13B-1120",
+   "age": 49,
+   "sex": "F",
+   "weight_kg": 72,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "reassign_B",
+   "fictional": true
+  },
+  {
+   "bed": 14,
+   "encounter": "E14-1120",
+   "age": 62,
+   "sex": "M",
+   "weight_kg": null,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "weight_missing",
+   "fictional": true
+  },
+  {
+   "bed": 15,
+   "encounter": "E15-1120",
+   "age": 57,
+   "sex": "F",
+   "weight_kg": 69,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "deferral",
+   "fictional": true
+  },
+  {
+   "bed": 16,
+   "encounter": "E16-1120",
+   "age": 50,
+   "sex": "M",
+   "weight_kg": 92,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "suction_desat",
+   "fictional": true
+  },
+  {
+   "bed": 17,
+   "encounter": "E17-1120",
+   "age": 68,
+   "sex": "M",
+   "weight_kg": 84,
+   "code_status": "full",
+   "pathways": [],
+   "anuric": false,
+   "scenario": "crrt",
+   "fictional": true
+  }
+ ]
+}

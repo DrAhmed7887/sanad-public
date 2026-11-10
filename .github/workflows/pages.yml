@@ -1,0 +1,63 @@
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generate the self-contained fictional-data board
+        run: |
+          mkdir -p "$RUNNER_TEMP/site"
+          PYTHONPATH=src python3 -m sanad.board --out "$RUNNER_TEMP/site/index.html"
+          cp docs/workflow.svg docs/workflow.png "$RUNNER_TEMP/site/"
+          cp docs/workflow_4x5.svg docs/workflow_4x5.png "$RUNNER_TEMP/site/"
+          touch "$RUNNER_TEMP/site/.nojekyll"
+      - name: Verify the generated artifact is self-contained and clearly labelled
+        run: |
+          python3 - "$RUNNER_TEMP/site/index.html" <<'PY'
+          import pathlib, sys
+          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          required = [
+              "FICTIONAL DATA · SIMULATION · NOT FOR CLINICAL USE",
+              "Night nurse view",
+              "On-call doctor view",
+          ]
+          missing = [value for value in required if value not in text]
+          if missing:
+              raise SystemExit(f"missing required board content: {missing}")
+          print(f"generated board: {len(text.encode('utf-8'))} bytes; required labels present")
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
