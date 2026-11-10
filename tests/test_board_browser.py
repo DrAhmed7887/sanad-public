@@ -233,3 +233,62 @@ def test_bed6_combined_r2_positive_flow_at_0200(page: Page) -> None:
     expect(panel.locator('[data-rule="R2b"] .state-word')).to_have_text("met")
     expect(panel.locator("[data-r2-combined]")).to_be_visible()
     expect(page.locator('[data-screen="review"] [data-r1-detail]')).to_be_hidden()
+
+
+def test_embedded_data_is_decoded_and_no_entity_text_is_visible(
+    page: Page,
+) -> None:
+    """Bed 15's R1 detail at 19:00 shows a real ``>``; no screen shows an
+    HTML entity (D30)."""
+
+    page.locator("[data-role-nurse]").click()
+    expect(
+        page.locator('[data-bed="15"] [data-rule="R1"] .detail')
+    ).to_have_text("criteria hold; duration not yet > 120 min")
+
+    def assert_no_entities() -> None:
+        body = page.locator("body").inner_text()
+        for entity in ("&gt;", "&lt;", "&amp;"):
+            assert entity not in body
+
+    assert_no_entities()  # ward board
+    page.locator('[data-bed="15"]').click()
+    assert_no_entities()  # bed detail
+    page.locator('[data-screen="bed"]:not([hidden]) [data-nav-start]').click()
+    assert_no_entities()  # start
+    page.locator("[data-role-doctor]").click()
+    assert_no_entities()  # review
+    page.locator('[data-screen="review"]:not([hidden]) [data-nav-start]').click()
+    page.locator("[data-role-nurse]").click()
+    page.locator("[data-inbox-counter]").click()
+    assert_no_entities()  # inbox
+
+
+def test_criteria_rows_are_separated_and_emphasised(page: Page) -> None:
+    """Screen 5 criteria: no id/label/source run together, no raw markers."""
+
+    page.locator("[data-role-doctor]").click()
+    set_clock(page, "01:30")
+    page.locator('[data-episode-id="E15-1120:R1:78"]').click()
+
+    rows = page.locator("[data-r1-detail] [data-criterion]")
+    expect(rows).to_have_count(8)
+    for i in range(8):
+        row = rows.nth(i)
+        expect(row.locator(".criterion-source-label")).to_have_text("Source:")
+        lines = [s for s in row.inner_text().split("\n") if s.strip()]
+        assert lines[0] == row.get_attribute("data-criterion")
+        assert "Source:" in lines
+        assert lines.index("Source:") >= 2
+
+    text = page.locator("[data-r1-detail] [data-criteria-sources]").inner_text()
+    assert "0Passed" not in text
+    assert "12 hMODE" not in text
+    assert "**" not in text
+    assert "`" not in text
+    expect(
+        page.locator("[data-r1-detail] .criterion-label strong").first
+    ).to_be_visible()
+    expect(
+        page.locator("[data-r1-detail] .criterion-label code").first
+    ).to_be_visible()

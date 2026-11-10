@@ -801,3 +801,90 @@ def test_no_raw_iso_timestamp_rendered_as_literal_text(board_html: str) -> None:
         flags=re.DOTALL,
     )
     assert re.search(r"\dT\d\d:\d\d:\d\d", without_data) is None
+
+
+# ==========================================================================
+# Task 12 (D30): decoded text, emphasis, criteria rows.
+# ==========================================================================
+
+
+def _criteria_items(html: str) -> list[str]:
+    block = re.search(
+        r'<ul class="criteria-sources"[^>]*>(.*?)</ul>', html, re.DOTALL
+    )
+    assert block, "criteria list not found"
+    return re.findall(r"<li class=\"criterion\".*?</li>", block.group(1), re.DOTALL)
+
+
+def test_viewer_reverses_python_escaping_before_json_parse(board_html: str) -> None:
+    """Text in a ``<script>`` is never entity-decoded, so the viewer must undo
+    ``&lt;`` / ``&gt;`` / ``&amp;`` itself, with ``&amp;`` last (D30)."""
+
+    script = _viewer_script(board_html)
+    m = re.search(r"JSON\.parse\((.*?)\);", script, re.DOTALL)
+    assert m, "JSON.parse call not found"
+    arg = m.group(1)
+    assert "raw.textContent" in arg
+    lt = arg.index(".replace(/&lt;/g")
+    gt = arg.index(".replace(/&gt;/g")
+    amp = arg.index(".replace(/&amp;/g")
+    assert lt < gt < amp
+
+
+def test_criteria_rows_are_separate_blocks_with_source_label(
+    board_html: str,
+) -> None:
+    """Each criterion renders id, label, a visible ``Source:`` label and the
+    source as separate blocks (D30)."""
+
+    items = _criteria_items(board_html)
+    assert len(items) == len(board.CRITERIA_SOURCES) == 8
+    for item in items:
+        ids = re.findall(r'<div class="criterion-id">', item)
+        labels = re.findall(r'<div class="criterion-label">', item)
+        src_labels = re.findall(
+            r'<div class="criterion-source-label">Source:</div>', item
+        )
+        sources = re.findall(r'<div class="criterion-source">', item)
+        assert len(ids) == len(labels) == len(src_labels) == len(sources) == 1
+        assert (
+            item.index("criterion-id")
+            < item.index('class="criterion-label"')
+            < item.index("criterion-source-label")
+            < item.index('class="criterion-source"')
+        )
+
+
+def test_criteria_emphasis_rendered_after_escaping(board_html: str) -> None:
+    """``**x**`` -> ``<strong>x</strong>`` and `` `x` `` -> ``<code>x</code>``;
+    no marker survives in the visible criteria markup (D30)."""
+
+    items = _criteria_items(board_html)
+    joined = "".join(items)
+    assert "<strong>any other vasoactive agent</strong>" in joined
+    assert "<strong>more than 120 min</strong>" in joined
+    assert "<code>unknown</code>" in joined
+    assert "<code>not_met</code>" in joined
+    assert "<code>context_review</code>" in joined
+    text = re.sub(r"<[^>]+>", "", joined)
+    assert "**" not in text
+    assert "`" not in text
+
+
+def test_emphasis_never_lets_data_inject_tags() -> None:
+    """Escaping happens before emphasis, so only ``strong``/``code`` appear."""
+
+    out = board._emphasise("<b>**x**</b> `<i>` & **y**")
+    assert out == (
+        "&lt;b&gt;<strong>x</strong>&lt;/b&gt; <code>&lt;i&gt;</code> "
+        "&amp; <strong>y</strong>"
+    )
+
+
+def test_criteria_static_strings_stay_verbatim(board_model: dict) -> None:
+    """The embedded ``criteria_sources`` still carry the raw markers (D30)."""
+
+    labels = [c["label"] for c in board_model["static"]["criteria_sources"]]
+    assert any("**any other vasoactive agent**" in s for s in labels)
+    assert any("`unknown`" in s for s in labels)
+    assert labels == [c["label"] for c in board.CRITERIA_SOURCES]

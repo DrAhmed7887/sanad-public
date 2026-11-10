@@ -110,3 +110,12 @@ Ordered implementation tasks.
     - the banner text is the static feed-alert label plus the affected bed numbers while any active cell has a feed alert (bed 9, 01:15–02:25), and is empty and hidden otherwise;
     - `met` chips show no reason code; every other chip shows its reason code verbatim and wraps instead of being cut off (`overflow-wrap: anywhere`);
     - every displayed time is `HH:MM`, with the date (`20 Nov` / `21 Nov`) only on the clock and where the day changes; no raw ISO string appears in visible text.
+
+- [x] 12. Judge-facing display fixes: decoded text, emphasis, criteria rows (D30)
+  - Files: `src/sanad/board.py` (viewer JS, `_render_criteria_sources`, CSS), `tests/test_board_viewer.py`, `tests/test_board_browser.py`, `docs/TRACE.md`
+  - Requirements: AC-S5-r1, AC-FID-1, AC-GEN-8, D30
+  - Tests:
+    - the viewer reverses the Python escaping before `JSON.parse` (`&lt;` → `<`, `&gt;` → `>`, then `&amp;` → `&`), because text inside a `<script>` element is never entity-decoded by the HTML parser; in the executed browser, bed 15's R1 detail at 19:00 reads `criteria hold; duration not yet > 120 min`, and no visible text on any screen contains `&gt;`, `&lt;` or `&amp;`;
+    - the criteria list renders each criterion's id, label and source as separate blocks: the id, then the label, then the source on its own line after a visible `Source:` label; in the executed browser no id is joined to its label (no `0Passed`) and no label is joined to its source (no `12 hMODE`);
+    - `**text**` in a criterion label renders as `<strong>text</strong>` and `` `text` `` as `<code>text</code>`, applied after HTML escaping; no visible criteria text contains `**` or a backtick; the `CRITERIA_SOURCES` strings stay verbatim, so `tests/test_board_wording.py` passes unchanged;
+    - no new colour (palette test), no `innerHTML`, and the embedded JSON and its determinism test (task 8) are unchanged.

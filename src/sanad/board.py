@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -645,6 +646,23 @@ def _escape_text(value: str) -> str:
     )
 
 
+_STRONG_RE = re.compile(r"\*\*(.+?)\*\*")
+_CODE_RE = re.compile(r"`([^`]+)`")
+
+
+def _emphasise(value: str) -> str:
+    """Escape ``value``, then turn ``**x**`` into ``<strong>x</strong>`` and
+    `` `x` `` into ``<code>x</code>`` (D30).
+
+    Escaping comes first, so the only tags in the result are the two this
+    function writes; neither marker character is changed by escaping.
+    """
+
+    escaped = _escape_text(value)
+    escaped = _STRONG_RE.sub(r"<strong>\1</strong>", escaped)
+    return _CODE_RE.sub(r"<code>\1</code>", escaped)
+
+
 def _embed_board_data(model: dict) -> str:
     """Serialise the model to canonical JSON and escape it for embedding.
 
@@ -795,12 +813,17 @@ def _render_criteria_sources(static: dict) -> str:
     the drift test anchors them to the signed baseline.
     """
 
+    # Each criterion is three separate blocks -- id, label, then the source on
+    # its own line after a visible "Source:" label -- so no id is joined to its
+    # label and no label to its source (D30). Emphasis markers are converted
+    # after escaping; the static strings themselves stay verbatim.
     items = "".join(
         (
             f'<li class="criterion" data-criterion="{_escape_text(c["id"])}">'
-            f'<span class="criterion-id">{_escape_text(c["id"])}</span>'
-            f'<span class="criterion-label">{_escape_text(c["label"])}</span>'
-            f'<span class="criterion-source">{_escape_text(c["source"])}</span>'
+            f'<div class="criterion-id">{_escape_text(c["id"])}</div>'
+            f'<div class="criterion-label">{_emphasise(c["label"])}</div>'
+            f'<div class="criterion-source-label">Source:</div>'
+            f'<div class="criterion-source">{_emphasise(c["source"])}</div>'
             f"</li>"
         )
         for c in static["criteria_sources"]
@@ -843,10 +866,16 @@ _VIEWER_JS = """\
 
   var raw = document.getElementById("board-data");
   if (!raw) { return; }
-  // textContent already holds the unescaped JSON (the &lt;/&gt;/&amp; the
-  // Python side wrote are decoded by the parser into real characters when the
-  // element's text is read). Parse it; never eval, never fetch.
-  var model = JSON.parse(raw.textContent);
+  // Text inside a <script> element is never entity-decoded by the HTML parser,
+  // so the &lt; / &gt; / &amp; the Python side wrote are still literal here.
+  // Reverse that escaping (&amp; last, so &amp;lt; becomes &lt;, not <) before
+  // parsing; never eval, never fetch (D30).
+  var model = JSON.parse(
+    raw.textContent
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+  );
 
   var grid = model.grid_times || [];
   var beds = model.beds || [];
@@ -1527,7 +1556,13 @@ input[type="button"] {
 .list-item span { margin-right: 8px; }
 .workflow-beside, .item-workflow { color: var(--muted); }
 .threshold-label { color: var(--muted); font-style: italic; }
-.criteria-sources { color: var(--muted); }
+.criteria-sources { color: var(--muted); list-style: none; padding: 0; }
+.criterion { margin: 0 0 12px; }
+.criterion-id { font-weight: 700; color: var(--ink); }
+.criterion-label strong { color: var(--ink); }
+.criterion-label code, .criterion-source code { font-family: ui-monospace, monospace; }
+.criterion-source-label { margin-top: 4px; font-weight: 700; }
+.criterion-source { overflow-wrap: anywhere; }
 """
 
 
