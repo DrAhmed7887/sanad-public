@@ -1,0 +1,150 @@
+{
+  "_scope": "Software behaviour on the fixed fictional seed-42 ward (data/ward_seed42): the 19:00-07:00 night on the 5-minute grid. Not a clinical result, not an alert-fatigue measurement and not a comparison with any real product.",
+  "generated_by": "scripts/alert_burden.py",
+  "definitions": {
+    "rule_check": "one rule (R1, R2a, R2b or R3) evaluated at one grid point for an encounter that is on the board then (sanad.r3.is_active)",
+    "met_check": "a rule check whose evaluation state is met",
+    "message": "one item in the on-call doctor's episode list or the night nurse's inbox (sanad.board.build_board_model): one per contiguous run of met grid points per encounter and group (R1; R2 = R2a or R2b; R3), plus one per contiguous feed-alert run. grid_points counts the whole run; on_board_points counts only its points where the encounter is on the board",
+    "met_results_outside_stay": "met results on grid points where the encounter is not on the board; they are not rule checks, and any listed here is a discrepancy explained in JUDGES.md"
+  },
+  "night_grid": {
+    "first": "2026-11-20T19:00:00+01:00",
+    "last": "2026-11-21T07:00:00+01:00",
+    "points": 145
+  },
+  "beds": 17,
+  "encounters": 18,
+  "rules": [
+    "R1",
+    "R2a",
+    "R2b",
+    "R3"
+  ],
+  "active_encounter_cells": 2462,
+  "rule_checks": 9848,
+  "met_checks_total": 657,
+  "met_checks_by_rule": {
+    "R1": 264,
+    "R2a": 130,
+    "R2b": 254,
+    "R3": 9
+  },
+  "messages_total": 11,
+  "doctor_episodes": 9,
+  "nurse_inbox_items": 2,
+  "messages_by_group": {
+    "R1": 4,
+    "R2": 5,
+    "R3": 1,
+    "feed_alert": 1
+  },
+  "met_results_outside_stay": 60,
+  "met_results_outside_stay_by_encounter": {
+    "E13A-1120": {
+      "R2b": 60
+    }
+  },
+  "doctor_episode_list": [
+    {
+      "bed": 5,
+      "encounter": "E05-1120",
+      "group": "R2",
+      "time_raised": "2026-11-20T19:00:00+01:00",
+      "time_ended": null,
+      "grid_points": 145,
+      "on_board_points": 145
+    },
+    {
+      "bed": 13,
+      "encounter": "E13A-1120",
+      "group": "R2",
+      "time_raised": "2026-11-20T19:00:00+01:00",
+      "time_ended": "2026-11-21T04:00:00+01:00",
+      "grid_points": 108,
+      "on_board_points": 48
+    },
+    {
+      "bed": 15,
+      "encounter": "E15-1120",
+      "group": "R1",
+      "time_raised": "2026-11-20T20:35:00+01:00",
+      "time_ended": "2026-11-20T20:45:00+01:00",
+      "grid_points": 2,
+      "on_board_points": 2
+    },
+    {
+      "bed": 1,
+      "encounter": "E01-1120",
+      "group": "R1",
+      "time_raised": "2026-11-20T22:20:00+01:00",
+      "time_ended": null,
+      "grid_points": 105,
+      "on_board_points": 105
+    },
+    {
+      "bed": 12,
+      "encounter": "E12-1120",
+      "group": "R1",
+      "time_raised": "2026-11-20T23:05:00+01:00",
+      "time_ended": null,
+      "grid_points": 96,
+      "on_board_points": 96
+    },
+    {
+      "bed": 6,
+      "encounter": "E06-1120",
+      "group": "R2",
+      "time_raised": "2026-11-21T01:05:00+01:00",
+      "time_ended": null,
+      "grid_points": 72,
+      "on_board_points": 72
+    },
+    {
+      "bed": 15,
+      "encounter": "E15-1120",
+      "group": "R1",
+      "time_raised": "2026-11-21T01:30:00+01:00",
+      "time_ended": "2026-11-21T06:35:00+01:00",
+      "grid_points": 61,
+      "on_board_points": 61
+    },
+    {
+      "bed": 4,
+      "encounter": "E04-1120",
+      "group": "R2",
+      "time_raised": "2026-11-21T02:20:00+01:00",
+      "time_ended": null,
+      "grid_points": 57,
+      "on_board_points": 57
+    },
+    {
+      "bed": 16,
+      "encounter": "E16-1120",
+      "group": "R2",
+      "time_raised": "2026-11-21T03:05:00+01:00",
+      "time_ended": "2026-11-21T03:10:00+01:00",
+      "grid_points": 1,
+      "on_board_points": 1
+    }
+  ],
+  "nurse_inbox_list": [
+    {
+      "bed": 10,
+      "encounter": "E10-1120",
+      "group": "R3",
+      "time_raised": "2026-11-21T01:10:00+01:00",
+      "time_ended": "2026-11-21T01:55:00+01:00",
+      "grid_points": 9,
+      "on_board_points": 9
+    },
+    {
+      "bed": 9,
+      "encounter": "E09-1120",
+      "group": "feed_alert",
+      "time_raised": "2026-11-21T01:15:00+01:00",
+      "time_ended": "2026-11-21T02:30:00+01:00",
+      "grid_points": 15,
+      "on_board_points": 15
+    }
+  ]
+}
