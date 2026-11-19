@@ -292,3 +292,65 @@ def test_criteria_rows_are_separated_and_emphasised(page: Page) -> None:
     expect(
         page.locator("[data-r1-detail] .criterion-label code").first
     ).to_be_visible()
+
+
+def test_bed_tile_is_keyboard_operable_and_focus_moves_to_new_screen(
+    page: Page,
+) -> None:
+    """Keyboard-only path: a bed tile is focusable and Enter or Space opens it."""
+
+    page.locator("[data-role-nurse]").click()
+    tile = page.locator('[data-bed="10"]')
+    expect(tile).to_have_attribute("tabindex", "0")
+    expect(tile).to_have_attribute("role", "button")
+
+    tile.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator('[data-screen="bed"]')).to_be_visible()
+    expect(
+        page.locator('[data-screen="bed"] .screen-title')
+    ).to_be_focused()
+
+    page.locator("[data-screen='bed'] [data-nav-start]").click()
+    page.locator("[data-role-nurse]").click()
+    page.locator('[data-bed="3"]').focus()
+    page.keyboard.press("Space")
+    expect(page.locator('[data-screen="bed"]')).to_be_visible()
+
+
+def test_inbox_row_is_keyboard_operable(page: Page) -> None:
+    """An inbox row opens its episode with Enter, as it does with a click."""
+
+    page.locator("[data-role-nurse]").click()
+    set_clock(page, "01:10")
+    page.locator("[data-inbox-counter]").click()
+    item = page.locator('[data-inbox-list] [data-episode-id]').filter(
+        has_text="Bed 10"
+    ).filter(has_text="R3")
+    expect(item).to_have_count(1)
+    expect(item).to_have_attribute("tabindex", "0")
+    expect(item).to_have_attribute("role", "button")
+    item.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator('[data-screen="bed"]')).to_be_visible()
+
+
+def test_doctor_episode_row_is_keyboard_operable(page: Page) -> None:
+    """A doctor-list episode opens the review screen from the keyboard."""
+
+    page.locator("[data-role-doctor]").click()
+    set_clock(page, "01:30")
+    item = page.locator('[data-episode-id="E15-1120:R1:78"]')
+    expect(item).to_have_attribute("tabindex", "0")
+    item.focus()
+    page.keyboard.press("Space")
+    expect(page.locator('[data-screen="review"]:not([hidden]) [data-action-deferred]')).to_be_visible()
+
+
+def test_single_visually_hidden_h1_and_no_focus_on_load(page: Page) -> None:
+    """One page-level heading, off-screen, and the initial load steals no focus."""
+
+    expect(page.locator("h1")).to_have_count(1)
+    box = page.locator("h1").bounding_box()
+    assert box is not None and box["width"] <= 1 and box["height"] <= 1
+    assert page.evaluate("document.activeElement === document.body")

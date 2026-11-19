@@ -687,7 +687,7 @@ def _render_screen(screen_id: str, title: str, body: str) -> str:
 
     return (
         f'<section class="screen" data-screen="{screen_id}" hidden>'
-        f'<h2 class="screen-title">{_escape_text(title)}</h2>'
+        f'<h2 class="screen-title" tabindex="-1">{_escape_text(title)}</h2>'
         f"{body}"
         f"</section>"
     )
@@ -705,7 +705,7 @@ def _render_bed_tile(bed: int, encounters: Sequence[str]) -> str:
 
     enc_attr = _escape_text(",".join(encounters))
     return (
-        f'<li class="bed-tile" data-bed="{bed}" data-encounters="{enc_attr}">'
+        f'<li class="bed-tile" data-bed="{bed}" data-encounters="{enc_attr}" tabindex="0" role="button">'
         f'<span class="bed-number">{bed}</span>'
         f'<span class="bed-body" data-bed-body></span>'
         f'<span class="bed-feed-chip" data-feed-chip hidden></span>'
@@ -963,10 +963,29 @@ _VIEWER_JS = """\
   // --- screen show / hide -------------------------------------------------
 
   var screens = qa("[data-screen]");
+  var started = false;  // true once the initial screen has been shown
   function show(id) {
     for (var i = 0; i < screens.length; i += 1) {
       screens[i].hidden = screens[i].getAttribute("data-screen") !== id;
     }
+    // After a user-driven screen change, move keyboard focus to the new
+    // screen's heading so it is not left on a control that was just hidden.
+    if (started) {
+      var title = q("[data-screen]:not([hidden]) .screen-title");
+      if (title) { title.focus({ preventScroll: true }); }
+    }
+  }
+
+  // Keyboard activation for non-button rows and tiles: Enter or Space runs
+  // the same handler as a click.
+  function onActivate(el, handler) {
+    el.addEventListener("click", handler);
+    el.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " " || ev.key === "Spacebar") {
+        ev.preventDefault();
+        handler();
+      }
+    });
   }
 
   // --- embedded-data lookups (read by key only; no rule logic) -----------
@@ -1161,8 +1180,10 @@ _VIEWER_JS = """\
         withText("span", "item-workflow", workflowChipText(item, i))
       );
       if (onOpen) {
+        li.setAttribute("tabindex", "0");
+        li.setAttribute("role", "button");
         (function (captured) {
-          li.addEventListener("click", function () { onOpen(captured); });
+          onActivate(li, function () { onOpen(captured); });
         })(item);
       }
       container.appendChild(li);
@@ -1411,7 +1432,7 @@ _VIEWER_JS = """\
     for (var t = 0; t < tiles.length; t += 1) {
       (function (tile) {
         var bedNumber = parseInt(tile.getAttribute("data-bed"), 10);
-        tile.addEventListener("click", function () {
+        onActivate(tile, function () {
           selectBed(bedNumber);
         });
       })(tiles[t]);
@@ -1433,6 +1454,7 @@ _VIEWER_JS = """\
 
   // Start on the first screen (Start); the user picks a role from there.
   if (screens.length) { show(screens[0].getAttribute("data-screen")); }
+  started = true;
   renderAll();
 })();
 """
@@ -1454,6 +1476,18 @@ _STYLE_CSS = """\
    element -- the per-tile feed chip, the feed banner, the review detail
    panels and the screen containers (AC-FAIL-1, AC-S2-feedbanner). */
 [hidden] { display: none !important; }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.screen-title:focus { outline: none; }
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
@@ -1689,6 +1723,7 @@ def render_html(model: dict) -> str:
         f"<style>{_STYLE_CSS}</style>\n"
         "</head>\n"
         "<body>\n"
+        '<h1 class="visually-hidden">Sanad ward board (fictional data)</h1>\n'
         f'<header class="persistent-label" data-persistent-label>{label}</header>\n'
         '<div class="feed-banner" data-feed-banner hidden></div>\n'
         f'<main class="board">{screens}</main>\n'
