@@ -13,7 +13,7 @@ Each number or feature word in the README, JUDGES.md and the Kiroween submission
 | Board works offline, no network, no data entry | `tests/test_board_offline.py` | `pytest tests/test_board_offline.py` |
 | Late records count from their documented time | `src/sanad/timeline.py`, `tests/test_combined.py` | `pytest tests/test_combined.py` |
 | Rules cite sources or are marked DESIGN; baseline frozen by hash | `docs/EVIDENCE.md`, `docs/BASELINE.md`, `scripts/hooks/baseline_check.py` | `python3 scripts/hooks/baseline_check.py` |
-| Spec-driven development with Kiro | `.kiro/specs/rules-engine/`, `.kiro/specs/ward-board/` | read the `tasks.md` files |
+| Spec-driven development with Kiro | `.kiro/specs/rules-engine/`, `.kiro/specs/ward-board/` | read `.kiro/specs/ward-board/tasks.md` |
 | Known limits (B1 to B7) | `JUDGES.md` | read the limits table |
 
 Published sources quoted in the README (Drew 2014, Ancker 2017, Aiken 2014) are cited there with DOI or PMID; they are literature, not results of this repository.
