@@ -80,7 +80,7 @@ Not claimed: MCP, Kiro powers, Kiro Crew, Kiro IDE or Kiro Web (backlog B7).
 |---|---|
 | What problem, for whom, why it matters | The README top (headline, workflow image, one run command) and its [Alert fatigue](README.md#alert-fatigue) and [Limits](README.md#limits) sections |
 | Workflow diagram | [`docs/workflow.png`](docs/workflow.png) and [`docs/workflow.svg`](docs/workflow.svg), with 4:5 versions for posts |
-| Demo video | Not published yet (backlog B5) |
+| Demo video | [YouTube, 2:49](https://youtu.be/2LObw4ZvmOE) |
 
 ## Open gaps (backlog)
 
@@ -90,7 +90,7 @@ Not claimed: MCP, Kiro powers, Kiro Crew, Kiro IDE or Kiro Web (backlog B7).
 | B2 | 2026-11-10 | The count comes from one fixed night (17 beds, hand-built scenarios); there is no second night, adversarial set or public dataset | Potential Impact, Innovation/Idea | More fictional nights, each counted by `scripts/alert_burden.py` and committed under `eval/results/` |
 | B3 | 2026-11-10 | Bed 13's first encounter keeps R2b `met` for 60 grid points after its 23:00 discharge, so its R2 item stays in the doctor's list until 03:55 (108 grid points, 48 on board, in `doctor_episode_list`); [`data/SCENARIOS.md`](data/SCENARIOS.md) expects no evaluations after it leaves | Design | An engine fix with an oracle test, then a fresh `eval/results/alert-burden.json` (the 60 results are already outside the 657) |
 | B4 | 2026-11-10 | The engine does not reject a deferral without a reason or an owner, and an R3 deferral without an expiry would not lapse (the fixed dataset has none) | Design | Validation in the loader or the rules, with tests |
-| B5 | 2026-11-10 | The demo video is not published | Presentation | The film (under 3 minutes) on YouTube, linked here and in the README |
+| B5 | 2026-11-10 | ~~The demo video is not published~~ Closed 2026-11-20: [published on YouTube](https://youtu.be/2LObw4ZvmOE) | Presentation | Done: linked here and in the README |
 | B6 | 2026-11-10 | The public repository is a snapshot, so the per-task Kiro build history is not visible in it | Technological Implementation | A build log: each spec task, its date and its Kiro-built commit |
 | B7 | 2026-11-10 | MCP, Kiro powers, Kiro Crew, Kiro IDE and Kiro Web were not used | Technological Implementation | Add one only where it fits the offline design |
 
