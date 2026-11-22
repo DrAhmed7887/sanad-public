@@ -14,7 +14,7 @@ Reproduce the count from the repository root (Python 3.12, standard library only
 python3 -I scripts/alert_burden.py --check
 ```
 
-To try the board itself, open the [live page](https://drahmed7887.github.io/sanad-public/) (no install, no account) or generate it locally as shown [below](#generate-and-open-the-local-demo). [`JUDGES.md`](JUDGES.md) maps each Kiroween judging criterion to the file, test or screen that proves it.
+Watch the [2:49 demo video](https://youtu.be/2LObw4ZvmOE). To try the board itself, open the [live page](https://drahmed7887.github.io/sanad-public/) (no install, no account) or generate it locally as shown [below](#generate-and-open-the-local-demo). [`JUDGES.md`](JUDGES.md) maps each Kiroween judging criterion to the file, test or screen that proves it.
 
 Sanad is an offline demonstration of sourced night-shift review rules and simulated notification workflows, replayed on a fixed fictional 17-bed adult ICU ward. A deterministic Python engine evaluates the scenarios; a self-contained HTML board lets a viewer step through the night in five-minute increments.
 
