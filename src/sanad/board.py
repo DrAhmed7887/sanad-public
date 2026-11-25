@@ -62,6 +62,8 @@ __all__ = [
     "INTENDED_USE",
     "VERIFICATION",
     "WARD_LINE",
+    "START_HEADLINE",
+    "SCENARIO_JUMPS",
     "THRESHOLD_LABEL",
     "FLUID_UNKNOWN_LABEL",
     "FEED_ALERT_LABEL",
@@ -102,6 +104,32 @@ VERIFICATION = (
 )
 
 WARD_LINE = "Night of 20–21 Nov 2026 · 17 beds · fictional ward"
+
+START_HEADLINE = "Sourced night-shift ICU review & episode-grouped notifications"
+
+# One-click Scenario Jump targets verified against data/SCENARIOS.md and the
+# 5-min evaluation grid (19:00..07:00). Each jump lands directly on a real
+# grid timestamp without stepping 40+ times.
+SCENARIO_JUMPS = (
+    {
+        "id": "bed1-r1",
+        "hhmm": "22:20",
+        "label": "22:20 · Bed 1 R1",
+        "description": "Bed 1 R1 SBT screen onset (grid idx 40)",
+    },
+    {
+        "id": "bed9-stale",
+        "hhmm": "01:15",
+        "label": "01:15 · Bed 9 stale",
+        "description": "Bed 9 stale-data/unknown transition and feed alert (grid idx 75)",
+    },
+    {
+        "id": "peak-alerts",
+        "hhmm": "02:20",
+        "label": "02:20 · Peak alerts (Bed 4/6)",
+        "description": "Bed 4 R2a onset, Bed 6 combined R2, Bed 9 feed alert (grid idx 88)",
+    },
+)
 
 THRESHOLD_LABEL = "DESIGN demo values, not emergency alarm thresholds"
 
@@ -278,6 +306,8 @@ def build_static_copy() -> dict:
         "intended_use": INTENDED_USE,
         "verification": VERIFICATION,
         "ward_line": WARD_LINE,
+        "start_headline": START_HEADLINE,
+        "scenario_jumps": [dict(j) for j in SCENARIO_JUMPS],
         "silence_text": SILENCE_TEXT,
         "r1_met_text": R1_MET_TEXT,
         "r2_combined_text": R2_COMBINED_TEXT,
@@ -713,27 +743,37 @@ def _render_bed_tile(bed: int, encounters: Sequence[str]) -> str:
     )
 
 
-def _render_clock_controls() -> str:
+def _render_clock_controls(jumps: Sequence[dict] = SCENARIO_JUMPS) -> str:
     """The simulated-clock controls -- fixed buttons only (AC-NOINPUT-1/2).
 
-    Stepping the clock is the only "input"; it is two ``<input type="button">``
+    Stepping the clock is the only "input"; it is ``<input type="button">``
     controls (never a text/number/range field), plus a read-only display the
-    viewer writes with ``textContent`` (task 5).
+    viewer writes with ``textContent`` (task 5), alongside three one-click
+    scenario jump buttons anchored on verified dataset timestamps.
 
     The same control block is rendered on every working screen (Screens 2-5),
     so the clock is visible and usable wherever the user is, not only on the
     ward board (task 10; UI_FLOW rule 2 "Every screen shows data as known at the
     selected time"). The viewer wires **all** ``data-clock-prev`` /
-    ``data-clock-next`` controls to the single integer clock index and writes
-    **every** ``data-clock-display`` with ``textContent``, so stepping the clock
-    on any screen moves the whole board together.
+    ``data-clock-next`` / ``data-clock-jump`` controls to the single integer
+    clock index and writes **every** ``data-clock-display`` with ``textContent``,
+    so stepping or jumping the clock on any screen moves the whole board together.
     """
 
+    jump_buttons = "".join(
+        f'<input type="button" class="clock-jump" '
+        f'data-clock-jump="{_escape_text(j["hhmm"])}" '
+        f'data-jump-id="{_escape_text(j["id"])}" '
+        f'value="{_escape_text(j["label"])}" '
+        f'title="{_escape_text(j["description"])}">'
+        for j in jumps
+    )
     return (
         '<div class="clock" data-clock>'
         '<input type="button" data-clock-prev value="&larr; 5 min">'
         '<span class="clock-display" data-clock-display></span>'
         '<input type="button" data-clock-next value="5 min &rarr;">'
+        f'<span class="clock-jumps" data-clock-jumps>{jump_buttons}</span>'
         "</div>"
     )
 
@@ -1343,6 +1383,101 @@ _VIEWER_JS = """\
     }
   }
 
+  // --- start screen live ward status (Screen 1) --------------------------
+
+  function renderStartStatus() {
+    var holder = q("[data-start-status]");
+    if (!holder) { return; }
+    clear(holder);
+    var i = clockIndex;
+    var activeBeds = 0;
+    var triggeredBeds = [];
+    var feedBeds = [];
+    var pills = make("ul", "start-bed-strip");
+    for (var b = 0; b < beds.length; b += 1) {
+      var bedNumber = beds[b].bed;
+      var found = i >= 0 ? activeCellForBed(beds[b], i) : null;
+      var pill = make("li", "start-bed-pill");
+      pill.setAttribute("data-start-bed", String(bedNumber));
+      if (!found) {
+        pill.appendChild(withText("span", "start-bed-id", "B" + bedNumber));
+        pill.appendChild(withText("span", "start-bed-note", "\\u2014"));
+        pills.appendChild(pill);
+        continue;
+      }
+      activeBeds += 1;
+      var cell = found.cell;
+      var trigRules = [];
+      var ruleIds = ruleIdsOf(cell);
+      for (var r = 0; r < ruleIds.length; r += 1) {
+        var res = cell.results[ruleIds[r]];
+        // ``show_reason`` is false exclusively for triggered (met) rules
+        // (computed in Python so the viewer holds no state-word literal).
+        if (res && res.show_reason === false) {
+          trigRules.push(ruleIds[r]);
+        }
+      }
+      if (trigRules.length > 0) {
+        pill.className += " is-triggered";
+        triggeredBeds.push("Bed " + bedNumber);
+      }
+      if (cell.feed_alert) {
+        pill.className += " is-feed";
+        feedBeds.push("Bed " + bedNumber);
+      }
+      var note = trigRules.length > 0
+        ? trigRules.join("+")
+        : (cell.feed_alert ? (staticCopy.feed_alert_label || "feed alert") : "\\u2014");
+      pill.appendChild(withText("span", "start-bed-id", "B" + bedNumber));
+      pill.appendChild(withText("span", "start-bed-note", note));
+      pills.appendChild(pill);
+    }
+    var openDoctor = 0;
+    if (i >= 0) {
+      for (var e = 0; e < episodes.length; e += 1) {
+        if (itemIsOpen(episodes[e], i)) { openDoctor += 1; }
+      }
+    }
+    var openNurse = i >= 0 ? inboxOpenCount() : 0;
+
+    var metrics = make("div", "start-metrics");
+    var mClock = make("div", "start-metric");
+    mClock.appendChild(withText("span", "metric-label", "Simulated clock"));
+    mClock.appendChild(withText("span", "metric-value", i >= 0 ? fmtClock(grid[i]) : "\\u2014"));
+    metrics.appendChild(mClock);
+
+    var mBeds = make("div", "start-metric");
+    mBeds.appendChild(withText("span", "metric-label", "Active beds"));
+    mBeds.appendChild(withText("span", "metric-value", activeBeds + " / " + beds.length));
+    metrics.appendChild(mBeds);
+
+    var mTrig = make("div", "start-metric");
+    mTrig.appendChild(withText("span", "metric-label", "Triggered beds"));
+    mTrig.appendChild(withText(
+      "span",
+      "metric-value",
+      triggeredBeds.length + (triggeredBeds.length ? " (" + triggeredBeds.join(", ") + ")" : "")
+    ));
+    metrics.appendChild(mTrig);
+
+    var mOpen = make("div", "start-metric");
+    mOpen.appendChild(withText("span", "metric-label", "Open items"));
+    mOpen.appendChild(withText("span", "metric-value", openDoctor + " doctor · " + openNurse + " nurse"));
+    metrics.appendChild(mOpen);
+
+    var mFeed = make("div", "start-metric");
+    mFeed.appendChild(withText("span", "metric-label", "Feed alerts"));
+    mFeed.appendChild(withText(
+      "span",
+      "metric-value",
+      feedBeds.length ? feedBeds.join(", ") : "None"
+    ));
+    metrics.appendChild(mFeed);
+
+    holder.appendChild(metrics);
+    holder.appendChild(pills);
+  }
+
   // --- the clock ----------------------------------------------------------
 
   // The clock controls are repeated on Screens 2-5 (task 10), so write EVERY
@@ -1368,6 +1503,7 @@ _VIEWER_JS = """\
 
   function renderAll() {
     renderClock();
+    renderStartStatus();
     renderTiles();
     renderInboxCounter();
     renderList(q("[data-inbox-list]"), inbox, function (item) {
@@ -1388,6 +1524,17 @@ _VIEWER_JS = """\
     if (clockIndex < 0) { clockIndex = 0; }
     if (clockIndex > grid.length - 1) { clockIndex = grid.length - 1; }
     renderAll();
+  }
+
+  function jumpToTime(hhmm) {
+    if (clockIndex < 0 || !hhmm) { return; }
+    for (var k = 0; k < grid.length; k += 1) {
+      if (fmtTime(grid[k]) === hhmm) {
+        clockIndex = k;
+        renderAll();
+        return;
+      }
+    }
   }
 
   // --- simulated actions (workflow chip only) -----------------------------
@@ -1447,6 +1594,14 @@ _VIEWER_JS = """\
   on("[data-inbox-counter]", function () { show("inbox"); renderAll(); });
   on("[data-clock-prev]", function () { step(-1); });
   on("[data-clock-next]", function () { step(1); });
+  var jumpButtons = qa("[data-clock-jump]");
+  for (var j = 0; j < jumpButtons.length; j += 1) {
+    (function (btn) {
+      btn.addEventListener("click", function () {
+        jumpToTime(btn.getAttribute("data-clock-jump"));
+      });
+    })(jumpButtons[j]);
+  }
   on("[data-action-acknowledge]", function () { applySimulated("acknowledged"); });
   on("[data-action-assessed]", function () { applySimulated("assessed"); });
   on("[data-action-deferred]", function () { applySimulated("deferred"); });
@@ -1533,7 +1688,55 @@ body {
   padding: 2px 6px;
   border-radius: 4px;
 }
-.clock, .actions { margin: 8px 0; }
+.clock, .actions { margin: 8px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.clock-jumps { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 8px; }
+.clock-jump { border-color: var(--accent); }
+.start-headline { font-size: 1.15rem; font-weight: 700; margin: 4px 0; }
+.ward-line { color: var(--muted); margin: 0 0 12px; }
+.start-status { margin: 12px 0; }
+.start-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.start-metric {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.metric-label { display: block; font-size: 0.8rem; color: var(--muted); }
+.metric-value { display: block; font-weight: 700; margin-top: 2px; }
+.start-bed-strip {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+}
+.start-bed-pill {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 0.85rem;
+}
+.start-bed-pill.is-triggered, .start-bed-pill.is-feed {
+  border: 2px solid var(--accent);
+}
+.start-bed-id { font-weight: 700; margin-right: 4px; }
+.start-bed-note { color: var(--muted); }
+.start-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.site-footer {
+  padding: 8px 12px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.disclaimer-notice summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+.disclaimer-notice p { margin: 6px 0; color: var(--muted); }
 .nav { margin: 8px 0; }
 .review-detail { margin: 8px 0; }
 .picklist { margin-left: 8px; color: var(--muted); }
@@ -1618,6 +1821,8 @@ def render_html(model: dict) -> str:
 
     static = model["static"]
     label = _escape_text(static["persistent_label"])
+    headline = static.get("start_headline", START_HEADLINE)
+    jumps = static.get("scenario_jumps", SCENARIO_JUMPS)
 
     # One tile per physical bed, in bed-number order (AC-ORDER-1, AC-S2-grid).
     tiles = "".join(
@@ -1626,25 +1831,28 @@ def render_html(model: dict) -> str:
     )
     bed_grid = f'<ul class="bed-grid" data-bed-grid>{tiles}</ul>'
 
-    # The five screens. Bodies are minimal placeholders the viewer fills in
-    # later tasks; task 3 guarantees only the container, the controls and the
-    # bed grid structure. Screens 2-5 each carry the simulated-clock controls
-    # (so the clock is usable wherever the user is; task 10, UI_FLOW rule 2) and
-    # a "Start" button back to Screen 1 (task 10, UI_FLOW Screen 1).
+    # The five screens. Screen 1 opens directly with the headline, ward line,
+    # live ICU ward status and role buttons above the fold; the full intended-use
+    # and verification notice sits in a compact collapsed <details> footer so it
+    # never blocks entry while remaining one click away and verbatim in the DOM.
+    # Screens 2-5 each carry the simulated-clock controls (including the 3
+    # one-click scenario jumps) and a "Start" button back to Screen 1.
+    clock_controls = _render_clock_controls(jumps)
     screen_bodies = {
         "start": (
-            f'<p class="intended-use" data-intended-use>'
-            f'{_escape_text(static["intended_use"])}</p>'
-            f'<p class="verification" data-verification>'
-            f'{_escape_text(static["verification"])}</p>'
+            f'<p class="start-headline" data-start-headline>'
+            f'{_escape_text(headline)}</p>'
             f'<p class="ward-line" data-ward-line>'
             f'{_escape_text(static["ward_line"])}</p>'
+            '<div class="start-status" data-start-status></div>'
+            '<div class="start-actions">'
             '<input type="button" data-role-nurse value="Night nurse view">'
             '<input type="button" data-role-doctor value="On-call doctor view">'
+            '</div>'
         ),
         "ward": (
             _render_start_nav()
-            + _render_clock_controls()
+            + clock_controls
             # The inbox counter is a fixed button reading
             # "Inbox: N open (simulated)" that opens the simulated inbox
             # (Screen 4); the viewer writes the N and the full label with
@@ -1656,19 +1864,19 @@ def render_html(model: dict) -> str:
         ),
         "bed": (
             _render_start_nav()
-            + _render_clock_controls()
+            + clock_controls
             + '<div class="bed-detail" data-bed-detail></div>'
             + _render_threshold_label(static)
             + _render_action_controls()
         ),
         "inbox": (
             _render_start_nav()
-            + _render_clock_controls()
+            + clock_controls
             + '<ul class="inbox-list" data-inbox-list></ul>'
         ),
         "review": (
             _render_start_nav()
-            + _render_clock_controls()
+            + clock_controls
             + '<ul class="episode-list" data-episode-list></ul>'
             # The per-episode detail: the viewer shows exactly one of these
             # sub-containers from the *selected* episode at the clock (task 10),
@@ -1710,6 +1918,20 @@ def render_html(model: dict) -> str:
 
     board_data = _embed_board_data(model)
 
+    footer = (
+        '<footer class="site-footer">'
+        '<details class="disclaimer-notice" data-disclaimer-notice>'
+        '<summary class="disclaimer-summary">'
+        'Intended use &amp; verification notice (fictional data)'
+        '</summary>'
+        f'<p class="intended-use" data-intended-use>'
+        f'{_escape_text(static["intended_use"])}</p>'
+        f'<p class="verification" data-verification>'
+        f'{_escape_text(static["verification"])}</p>'
+        '</details>'
+        '</footer>\n'
+    )
+
     # Assemble. Start EXACTLY with ``<!doctype html>`` (AC-GEN test). No
     # external resource is referenced anywhere; the only ``<script>`` tags are
     # the inline JSON data block and the inline viewer.
@@ -1727,6 +1949,7 @@ def render_html(model: dict) -> str:
         f'<header class="persistent-label" data-persistent-label>{label}</header>\n'
         '<div class="feed-banner" data-feed-banner hidden></div>\n'
         f'<main class="board">{screens}</main>\n'
+        f"{footer}"
         f'<script type="application/json" id="board-data">{board_data}</script>\n'
         f"<script>{_VIEWER_JS}</script>\n"
         "</body>\n"

@@ -354,3 +354,54 @@ def test_single_visually_hidden_h1_and_no_focus_on_load(page: Page) -> None:
     box = page.locator("h1").bounding_box()
     assert box is not None and box["width"] <= 1 and box["height"] <= 1
     assert page.evaluate("document.activeElement === document.body")
+
+
+def test_start_screen_decluttered_and_disclaimer_details_toggles(page: Page) -> None:
+    """Screen 1 shows headline and live ward status on entry; disclaimer <details>
+    starts collapsed and toggles open/closed cleanly."""
+
+    expect(page.locator('[data-screen="start"] [data-start-headline]')).to_be_visible()
+    expect(page.locator('[data-screen="start"] [data-start-status]')).to_be_visible()
+    expect(page.locator('[data-screen="start"] [data-start-bed]')).to_have_count(17)
+    expect(page.locator("[data-role-nurse]")).to_be_visible()
+    expect(page.locator("[data-role-doctor]")).to_be_visible()
+
+    details = page.locator("[data-disclaimer-notice]")
+    expect(details).to_be_visible()
+    assert details.get_attribute("open") is None
+    expect(page.locator("[data-intended-use]")).to_be_hidden()
+
+    details.locator("summary").click()
+    assert details.get_attribute("open") is not None
+    expect(page.locator("[data-intended-use]")).to_be_visible()
+    expect(page.locator("[data-verification]")).to_be_visible()
+
+    details.locator("summary").click()
+    assert details.get_attribute("open") is None
+
+
+def test_scenario_jump_buttons_land_on_verified_states(page: Page) -> None:
+    """Each one-click Scenario Jump button jumps directly to its verified state."""
+
+    page.locator("[data-role-nurse]").click()
+    ward = page.locator('[data-screen="ward"]:not([hidden])')
+    display = ward.locator("[data-clock-display]")
+
+    ward.locator('[data-clock-jump="22:20"]').click()
+    expect(display).to_have_text(re.compile(r" 22:20$"))
+    expect(page.locator('[data-bed="1"] [data-rule="R1"] .state-word')).to_have_text("met")
+
+    ward.locator('[data-clock-jump="01:15"]').click()
+    expect(display).to_have_text(re.compile(r" 01:15$"))
+    expect(page.locator("[data-feed-banner]")).to_be_visible()
+    expect(page.locator("[data-feed-banner]")).to_have_text("feed alert · beds 9")
+    expect(page.locator('[data-bed="9"] [data-feed-chip]')).to_be_visible()
+    expect(page.locator('[data-bed="9"] [data-rule="R1"] .reason-code')).to_have_text(
+        "stale_data"
+    )
+
+    ward.locator('[data-clock-jump="02:20"]').click()
+    expect(display).to_have_text(re.compile(r" 02:20$"))
+    expect(page.locator('[data-bed="4"] [data-rule="R2a"] .state-word')).to_have_text("met")
+    expect(page.locator('[data-bed="6"] [data-rule="R2a"] .state-word')).to_have_text("met")
+    expect(page.locator('[data-bed="6"] [data-rule="R2b"] .state-word')).to_have_text("met")

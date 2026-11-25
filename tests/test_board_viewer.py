@@ -888,3 +888,83 @@ def test_criteria_static_strings_stay_verbatim(board_model: dict) -> None:
     assert any("**any other vasoactive agent**" in s for s in labels)
     assert any("`unknown`" in s for s in labels)
     assert labels == [c["label"] for c in board.CRITERIA_SOURCES]
+
+
+# ==========================================================================
+# Screen 1 declutter (<details> disclaimer footer + live ward status) and
+# 3 one-click Scenario Jump buttons next to the clock controls.
+# ==========================================================================
+
+
+def test_start_screen_shows_headline_and_live_status_without_disclaimer_wall(
+    board_html: str,
+) -> None:
+    """Screen 1 shows headline and live ward status on entry; the disclaimer wall
+    moves to a collapsed <details> footer notice with all verbatim copy kept."""
+
+    start = _screen_block(board_html, "start")
+    assert "data-start-headline" in start
+    assert "data-start-status" in start
+    assert "data-intended-use" not in start
+    assert "data-verification" not in start
+
+    m = re.search(
+        r'<footer class="site-footer">\s*(<details\b[^>]*data-disclaimer-notice[^>]*>.*?</details>)\s*</footer>',
+        board_html,
+        re.DOTALL,
+    )
+    assert m, "footer disclaimer <details> notice not found"
+    details = m.group(1)
+    # Collapsed by default: no bare `open` attribute on the <details> tag.
+    open_tag = details[: details.index(">") + 1]
+    assert not re.search(r"\bopen\b", open_tag), open_tag
+    assert "data-intended-use" in details
+    assert "data-verification" in details
+
+    script = _viewer_script(board_html)
+    assert "function renderStartStatus()" in script
+    assert "renderStartStatus();" in script
+
+
+def test_scenario_jump_buttons_next_to_clock_on_every_working_screen(
+    board_html: str, board_model: dict
+) -> None:
+    """Three one-click scenario jump buttons sit next to the clock controls on
+    Screens 2-5 and match verified grid timestamps and bed outcomes."""
+
+    assert len(board.SCENARIO_JUMPS) == 3
+    expected_hhmm = [j["hhmm"] for j in board.SCENARIO_JUMPS]
+    assert expected_hhmm == ["22:20", "01:15", "02:20"]
+
+    for screen_id in _WORKING_SCREENS:
+        block = _screen_block(board_html, screen_id)
+        for jump in board.SCENARIO_JUMPS:
+            pattern = (
+                rf'<input\b[^>]*type="button"[^>]*'
+                rf'data-clock-jump="{re.escape(jump["hhmm"])}"[^>]*>'
+            )
+            assert re.search(pattern, block), (screen_id, jump["hhmm"])
+
+    script = _viewer_script(board_html)
+    assert "function jumpToTime(hhmm)" in script
+    assert 'qa("[data-clock-jump]")' in script
+
+    # Verify each jump target lands on a real grid point and expected bed state.
+    grid = board_model["grid_times"]
+    by_hhmm = {t[11:16]: idx for idx, t in enumerate(grid)}
+    data = _board_data(board_html)
+
+    idx_2220 = by_hhmm["22:20"]
+    assert idx_2220 == 40
+    assert _cells_for(data, "E01-1120")[idx_2220]["results"]["R1"]["state"] == "met"
+
+    idx_0115 = by_hhmm["01:15"]
+    assert idx_0115 == 75
+    assert _cells_for(data, "E09-1120")[idx_0115]["feed_alert"] is True
+    assert _cells_for(data, "E09-1120")[idx_0115]["results"]["R1"]["reason"] == "stale_data"
+
+    idx_0220 = by_hhmm["02:20"]
+    assert idx_0220 == 88
+    assert _cells_for(data, "E04-1120")[idx_0220]["results"]["R2a"]["state"] == "met"
+    assert _cells_for(data, "E06-1120")[idx_0220]["combined_message"] != ""
+    assert _cells_for(data, "E09-1120")[idx_0220]["feed_alert"] is True
