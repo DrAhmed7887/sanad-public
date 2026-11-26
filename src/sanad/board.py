@@ -54,6 +54,7 @@ from .states import (
     R1_MET_TEXT,
     R2_COMBINED_TEXT,
     R3_OVERDUE_TEXT,
+    ReasonCode,
     SILENCE_TEXT,
 )
 
@@ -63,6 +64,7 @@ __all__ = [
     "VERIFICATION",
     "WARD_LINE",
     "START_HEADLINE",
+    "START_STAKE",
     "SCENARIO_JUMPS",
     "THRESHOLD_LABEL",
     "FLUID_UNKNOWN_LABEL",
@@ -107,6 +109,12 @@ WARD_LINE = "Night of 20–21 Nov 2026 · 17 beds · fictional ward"
 
 START_HEADLINE = "Sourced night-shift ICU review & episode-grouped notifications"
 
+START_STAKE = (
+    "Charge-nurse & on-call stake: ICU baseline averages 187 audible "
+    "alarms/bed/day (Drew et al. 2014); episode grouping turns 657 met "
+    "checks into 11 messages (9 doctor, 2 nurse) on this fictional night."
+)
+
 # One-click Scenario Jump targets verified against data/SCENARIOS.md and the
 # 5-min evaluation grid (19:00..07:00). Each jump lands directly on a real
 # grid timestamp without stepping 40+ times.
@@ -114,20 +122,20 @@ SCENARIO_JUMPS = (
     {
         "id": "bed1-r1",
         "hhmm": "22:20",
-        "label": "22:20 · Bed 1 R1",
+        "label": "Bed 1 R1 @ 22:20",
         "description": "Bed 1 R1 SBT screen onset (grid idx 40)",
+    },
+    {
+        "id": "bed6-fluid",
+        "hhmm": "02:00",
+        "label": "Bed 6 Late Fluid @ 02:00",
+        "description": "Bed 6 late-documented fluid makes R2b met and triggers combined R2 (grid idx 84)",
     },
     {
         "id": "bed9-stale",
         "hhmm": "01:15",
-        "label": "01:15 · Bed 9 stale",
+        "label": "Bed 9 Stale Feed @ 01:15",
         "description": "Bed 9 stale-data/unknown transition and feed alert (grid idx 75)",
-    },
-    {
-        "id": "peak-alerts",
-        "hhmm": "02:20",
-        "label": "02:20 · Peak alerts (Bed 4/6)",
-        "description": "Bed 4 R2a onset, Bed 6 combined R2, Bed 9 feed alert (grid idx 88)",
     },
 )
 
@@ -307,6 +315,7 @@ def build_static_copy() -> dict:
         "verification": VERIFICATION,
         "ward_line": WARD_LINE,
         "start_headline": START_HEADLINE,
+        "start_stake": START_STAKE,
         "scenario_jumps": [dict(j) for j in SCENARIO_JUMPS],
         "silence_text": SILENCE_TEXT,
         "r1_met_text": R1_MET_TEXT,
@@ -757,7 +766,8 @@ def _render_clock_controls(jumps: Sequence[dict] = SCENARIO_JUMPS) -> str:
     selected time"). The viewer wires **all** ``data-clock-prev`` /
     ``data-clock-next`` / ``data-clock-jump`` controls to the single integer
     clock index and writes **every** ``data-clock-display`` with ``textContent``,
-    so stepping or jumping the clock on any screen moves the whole board together.
+    so stepping or jumping the clock on any screen moves the whole board
+    together.
     """
 
     jump_buttons = "".join(
@@ -775,6 +785,135 @@ def _render_clock_controls(jumps: Sequence[dict] = SCENARIO_JUMPS) -> str:
         '<input type="button" data-clock-next value="5 min &rarr;">'
         f'<span class="clock-jumps" data-clock-jumps>{jump_buttons}</span>'
         "</div>"
+    )
+
+
+def _render_start_jumps(jumps: Sequence[dict] = SCENARIO_JUMPS) -> str:
+    """One-click scenario jump buttons on Screen 1 that jump directly to the
+    verified ward state for each key episode without 40+ manual clock clicks."""
+
+    buttons = "".join(
+        f'<input type="button" class="clock-jump start-jump" '
+        f'data-start-jump="{_escape_text(j["hhmm"])}" '
+        f'data-jump-id="{_escape_text(j["id"])}" '
+        f'value="{_escape_text(j["label"])}" '
+        f'title="{_escape_text(j["description"])}">'
+        for j in jumps
+    )
+    return f'<div class="start-jumps" data-start-jumps>{buttons}</div>'
+
+
+def _sandbox_vocab_attr() -> str:
+    """Serialised state-word and reason-code vocabulary for the sandbox.
+
+    Read from ``EvaluationState`` and ``ReasonCode`` in Python so the inline
+    viewer JS carries zero quoted evaluation-state-word literals.
+    """
+
+    vocab = {
+        "S_M": EvaluationState.MET.value,
+        "S_NM": EvaluationState.NOT_MET.value,
+        "S_U": EvaluationState.UNKNOWN.value,
+        "S_S": EvaluationState.SUPPRESSED.value,
+        "S_NA": EvaluationState.NOT_APPLICABLE.value,
+        "R_STALE": ReasonCode.STALE_DATA.value,
+        "R_SAT": ReasonCode.SAT_NOT_RECORDED.value,
+        "R_HAEMO": ReasonCode.HAEMO_UNCONFIRMED.value,
+        "R_WEIGHT": ReasonCode.WEIGHT_MISSING.value,
+        "R_NMBA": ReasonCode.NMBA_INFUSING.value,
+        "R_GATE": ReasonCode.CONTEXT_REVIEW.value,
+        "R_OK": ReasonCode.OK_NOT_MET.value,
+        "R_HELD": ReasonCode.HELD_DEFERRED.value,
+        "R_PATHWAY": ReasonCode.PATHWAY_EXCLUDED.value,
+        "R_ECMO": ReasonCode.ECMO.value,
+        "R_COMFORT": ReasonCode.COMFORT_ONLY.value,
+        "R_HIST": ReasonCode.INSUFFICIENT_HISTORY.value,
+        "R_OUT": ReasonCode.OUTPUT_NOT_CHARTED.value,
+    }
+    return _escape_text(json.dumps(vocab, sort_keys=True, separators=(",", ":"))).replace('"', "&quot;")
+
+
+def _render_custom_bed_sandbox() -> str:
+    """Lightweight interactive custom-bed sandbox on Screen 1 (<15 s UX).
+
+    Uses fixed ``<select>`` picklists and ``<input type="button">`` presets
+    only (preserving AC-NOINPUT-1/2), letting a judge tweak vitals, fluid, and
+    feed inputs and watch R1, R2a, R2b, and R3 evaluate live in-browser.
+    """
+
+    def _sel(attr: str, label: str, options: Sequence[tuple[str, str]]) -> str:
+        opts = "".join(
+            f'<option value="{_escape_text(v)}">{_escape_text(t)}</option>'
+            for v, t in options
+        )
+        return (
+            f'<label class="sb-field">{_escape_text(label)}'
+            f'<select {attr}>{opts}</select></label>'
+        )
+
+    controls = "".join([
+        _sel("data-sb-feed", "Feed freshness", (
+            ("fresh", "Fresh (<= 15 min)"),
+            ("stale", "Stale (> 15 min)"),
+        )),
+        _sel("data-sb-pathway", "Pathway", (
+            ("standard", "Standard ICU"),
+            ("dnr", "DNR (not excluded)"),
+            ("ecmo", "VV-ECMO"),
+            ("comfort", "Comfort-only"),
+        )),
+        _sel("data-sb-sat", "R1 SAT / meds / gate", (
+            ("confirmed", "SAT passed + effort/haemo confirmed"),
+            ("no_sat", "No SAT recorded"),
+            ("vaso_unconfirmed", "Vasopressin (haemo unconfirmed)"),
+            ("weight_missing", "Norepi mcg/kg/min (weight missing)"),
+            ("nmba", "NMBA infusing"),
+            ("gate", "Context gate: RR > 35 or pH < 7.30"),
+        )),
+        _sel("data-sb-dur", "R1 duration / hold", (
+            ("gt120", "Criteria held > 120 min"),
+            ("le120", "Criteria held <= 120 min"),
+            ("deferred", "Deferred until 01:30"),
+        )),
+        _sel("data-sb-oxy", "Oxygenation (R2a / R1)", (
+            ("baseline", "FiO2 0.40 / PEEP 5 / SpO2 96%"),
+            ("spo2_drop", "SpO2 -4 pts vs 6h median >= 5 min"),
+            ("settings_rise", "FiO2 +0.15 or PEEP +3 >= 30 min"),
+            ("both_rise", "Settings rise + SpO2 drop"),
+            ("high_steady", "FiO2 0.60 / PEEP 10 (no 6h rise)"),
+        )),
+        _sel("data-sb-fluid", "72-h fluid ledger (R2b)", (
+            ("low_charted", "+800 ml (output charted)"),
+            ("pos_charted", "+2,600 ml (output charted, > +2 L)"),
+            ("pos_no_output", "+2,600 ml (output not charted > 6 h)"),
+            ("short_hist", "History < 6 h"),
+        )),
+        _sel("data-sb-r3", "2-h ventilation check (R3)", (
+            ("ok", "Valid check <= 2 h"),
+            ("overdue", "Overdue (> 2 h + 10 min grace)"),
+        )),
+    ])
+    presets = (
+        '<div class="sb-presets">'
+        '<input type="button" data-sb-preset="r1-met" value="Preset: R1 met">'
+        '<input type="button" data-sb-preset="r2-combined" value="Preset: Combined R2">'
+        '<input type="button" data-sb-preset="stale" value="Preset: Stale feed">'
+        '<input type="button" data-sb-preset="reset" value="Reset">'
+        '</div>'
+    )
+    return (
+        f'<div class="sandbox-panel" data-sandbox-panel '
+        f'data-sandbox-vocab="{_sandbox_vocab_attr()}">'
+        '<div class="sb-head">'
+        '<h3 class="sb-title">Test Custom Bed State (in-browser simulation)</h3>'
+        '<p class="sb-sub">Tweak inputs or pick a preset to watch R1, R2a, R2b, and R3 evaluate live (DESIGN demo values, simulation only).</p>'
+        '</div>'
+        f'{presets}'
+        '<div class="sb-layout">'
+        f'<div class="sb-controls">{controls}</div>'
+        '<div class="sb-output" data-sb-output></div>'
+        '</div>'
+        '</div>'
     )
 
 
@@ -1383,7 +1522,7 @@ _VIEWER_JS = """\
     }
   }
 
-  // --- start screen live ward status (Screen 1) --------------------------
+  // --- start screen live ward status & custom bed sandbox (Screen 1) -----
 
   function renderStartStatus() {
     var holder = q("[data-start-status]");
@@ -1462,7 +1601,7 @@ _VIEWER_JS = """\
 
     var mOpen = make("div", "start-metric");
     mOpen.appendChild(withText("span", "metric-label", "Open items"));
-    mOpen.appendChild(withText("span", "metric-value", openDoctor + " doctor · " + openNurse + " nurse"));
+    mOpen.appendChild(withText("span", "metric-value", openDoctor + " doctor \\u00b7 " + openNurse + " nurse"));
     metrics.appendChild(mOpen);
 
     var mFeed = make("div", "start-metric");
@@ -1476,6 +1615,177 @@ _VIEWER_JS = """\
 
     holder.appendChild(metrics);
     holder.appendChild(pills);
+  }
+
+  function renderSandbox() {
+    var panel = q("[data-sandbox-panel]");
+    var output = q("[data-sb-output]");
+    if (!panel || !output) { return; }
+    var rawVocab = panel.getAttribute("data-sandbox-vocab");
+    if (!rawVocab) { return; }
+    var vocab = JSON.parse(rawVocab);
+    clear(output);
+
+    var feed = selectValue(q("[data-sb-feed]"));
+    var pathway = selectValue(q("[data-sb-pathway]"));
+    var sat = selectValue(q("[data-sb-sat]"));
+    var dur = selectValue(q("[data-sb-dur]"));
+    var oxy = selectValue(q("[data-sb-oxy]"));
+    var fluid = selectValue(q("[data-sb-fluid]"));
+    var r3sel = selectValue(q("[data-sb-r3]"));
+
+    var r2bState;
+    var r2b;
+    if (fluid === "short_hist") {
+      r2bState = vocab.S_U;
+      r2b = { state: r2bState, reason: vocab.R_HIST, show_reason: true, detail: "fewer than 6 h of history on this encounter", message: "" };
+    } else if (fluid === "pos_no_output") {
+      r2bState = vocab.S_U;
+      r2b = { state: r2bState, reason: vocab.R_OUT, show_reason: true, detail: "no urine/drain output charted in the previous 6 h; net +2.60 L (+2600 ml) over 72 h", message: "" };
+    } else if (fluid === "pos_charted") {
+      r2bState = vocab.S_M;
+      r2b = { state: r2bState, reason: vocab.R_OK, show_reason: false, detail: "net +2.60 L (+2600 ml) over 72 h", message: "" };
+    } else {
+      r2bState = vocab.S_NM;
+      r2b = { state: r2bState, reason: vocab.R_OK, show_reason: true, detail: "net +0.80 L (+800 ml) over 72 h", message: "" };
+    }
+
+    var r2aState;
+    var r2a;
+    if (pathway === "ecmo") {
+      r2aState = vocab.S_NA;
+      r2a = { state: r2aState, reason: vocab.R_ECMO, show_reason: true, detail: "pathway vv_ecmo", message: "" };
+    } else if (pathway === "comfort") {
+      r2aState = vocab.S_NA;
+      r2a = { state: r2aState, reason: vocab.R_COMFORT, show_reason: true, detail: "pathway comfort_only", message: "" };
+    } else if (fluid === "short_hist") {
+      r2aState = vocab.S_U;
+      r2a = { state: r2aState, reason: vocab.R_HIST, show_reason: true, detail: "fewer than 6 h of history on this encounter", message: "" };
+    } else if (feed === "stale") {
+      r2aState = vocab.S_U;
+      r2a = { state: r2aState, reason: vocab.R_STALE, show_reason: true, detail: "newest observation > 15 min old", message: "" };
+    } else if (oxy === "spo2_drop" || oxy === "settings_rise" || oxy === "both_rise") {
+      var r2aDet = oxy === "spo2_drop"
+        ? "SpO2 branch"
+        : (oxy === "settings_rise" ? "settings branch" : "settings branch; SpO2 branch");
+      if (r2bState === vocab.S_U) {
+        r2aDet += "; " + (staticCopy.fluid_unknown_label || "fluid balance unknown");
+      }
+      r2aState = vocab.S_M;
+      r2a = { state: r2aState, reason: vocab.R_OK, show_reason: false, detail: r2aDet, message: "" };
+    } else {
+      r2aState = vocab.S_NM;
+      r2a = { state: r2aState, reason: vocab.R_OK, show_reason: true, detail: "no oxygenation trend trigger", message: "" };
+    }
+
+    var r1State;
+    var r1;
+    if (pathway === "ecmo" || pathway === "comfort") {
+      r1State = vocab.S_NA;
+      r1 = { state: r1State, reason: vocab.R_PATHWAY, show_reason: true, detail: "pathway " + pathway, message: "" };
+    } else if (feed === "stale") {
+      r1State = vocab.S_U;
+      r1 = { state: r1State, reason: vocab.R_STALE, show_reason: true, detail: "newest observation > 15 min old", message: "" };
+    } else if (sat === "gate") {
+      r1State = vocab.S_NM;
+      r1 = { state: r1State, reason: vocab.R_GATE, show_reason: true, detail: "RR > 35 or pH < 7.30", message: "" };
+    } else if (sat === "no_sat") {
+      r1State = vocab.S_U;
+      r1 = { state: r1State, reason: vocab.R_SAT, show_reason: true, detail: "no SAT recorded in previous 12 h", message: "" };
+    } else if (sat === "vaso_unconfirmed") {
+      r1State = vocab.S_U;
+      r1 = { state: r1State, reason: vocab.R_HAEMO, show_reason: true, detail: "extra vasoactive requires haemodynamics confirmation", message: "" };
+    } else if (sat === "weight_missing") {
+      r1State = vocab.S_U;
+      r1 = { state: r1State, reason: vocab.R_WEIGHT, show_reason: true, detail: "weight missing for weight-based dose", message: "" };
+    } else if (sat === "nmba") {
+      r1State = vocab.S_NM;
+      r1 = { state: r1State, reason: vocab.R_NMBA, show_reason: true, detail: "neuromuscular blocker infusing", message: "" };
+    } else if (oxy === "high_steady" || oxy === "settings_rise" || oxy === "both_rise") {
+      r1State = vocab.S_NM;
+      r1 = { state: r1State, reason: vocab.R_OK, show_reason: true, detail: "FiO2 > 0.50 or PEEP > 8 cmH2O", message: "" };
+    } else if (dur === "le120") {
+      r1State = vocab.S_NM;
+      r1 = { state: r1State, reason: vocab.R_OK, show_reason: true, detail: "criteria hold; duration not yet > 120 min", message: "" };
+    } else if (dur === "deferred") {
+      r1State = vocab.S_S;
+      r1 = { state: r1State, reason: vocab.R_HELD, show_reason: true, detail: "deferred until 01:30", message: "" };
+    } else {
+      r1State = vocab.S_M;
+      r1 = { state: r1State, reason: vocab.R_OK, show_reason: false, detail: "", message: staticCopy.r1_met_text || "" };
+    }
+
+    var r3State;
+    var r3;
+    if (r3sel === "overdue") {
+      r3State = vocab.S_M;
+      r3 = { state: r3State, reason: vocab.R_OK, show_reason: false, detail: "overdue > 2 h + 10 min grace", message: staticCopy.r3_overdue_text || "" };
+    } else {
+      r3State = vocab.S_NM;
+      r3 = { state: r3State, reason: vocab.R_OK, show_reason: true, detail: "valid check within 2 h", message: "" };
+    }
+
+    if (feed === "stale") {
+      output.appendChild(withText("p", "bed-feed-chip", staticCopy.feed_alert_label || "feed alert"));
+    }
+    output.appendChild(ruleChip("R1", r1));
+    output.appendChild(ruleChip("R2a", r2a));
+    output.appendChild(ruleChip("R2b", r2b));
+    output.appendChild(ruleChip("R3", r3));
+
+    if (r2aState === vocab.S_M && r2bState === vocab.S_M) {
+      var comb = withText("p", "r2-combined", staticCopy.r2_combined_text || "");
+      comb.setAttribute("data-sb-combined", "");
+      output.appendChild(comb);
+      output.appendChild(withText("p", "threshold-label", staticCopy.threshold_label || ""));
+    }
+    if (r1State !== vocab.S_M && r2aState !== vocab.S_M && r2bState !== vocab.S_M && r3State !== vocab.S_M) {
+      var sil = withText("p", "silence-text", staticCopy.silence_text || "");
+      sil.setAttribute("data-sb-silence", "");
+      output.appendChild(sil);
+    }
+  }
+
+  function applySandboxPreset(name) {
+    var sets = {
+      "r1-met": { feed: "fresh", pathway: "standard", sat: "confirmed", dur: "gt120", oxy: "baseline", fluid: "low_charted", r3: "ok" },
+      "r2-combined": { feed: "fresh", pathway: "standard", sat: "no_sat", dur: "gt120", oxy: "spo2_drop", fluid: "pos_charted", r3: "ok" },
+      "stale": { feed: "stale", pathway: "standard", sat: "confirmed", dur: "gt120", oxy: "baseline", fluid: "low_charted", r3: "ok" },
+      "reset": { feed: "fresh", pathway: "standard", sat: "confirmed", dur: "le120", oxy: "baseline", fluid: "low_charted", r3: "ok" }
+    };
+    var p = sets[name];
+    if (!p) { return; }
+    var map = {
+      "[data-sb-feed]": p.feed,
+      "[data-sb-pathway]": p.pathway,
+      "[data-sb-sat]": p.sat,
+      "[data-sb-dur]": p.dur,
+      "[data-sb-oxy]": p.oxy,
+      "[data-sb-fluid]": p.fluid,
+      "[data-sb-r3]": p.r3
+    };
+    var keys = Object.keys(map);
+    for (var k = 0; k < keys.length; k += 1) {
+      var el = q(keys[k]);
+      if (el) { el.value = map[keys[k]]; }
+    }
+    renderSandbox();
+  }
+
+  function wireSandbox() {
+    var sels = qa("[data-sandbox-panel] select");
+    for (var s = 0; s < sels.length; s += 1) {
+      sels[s].addEventListener("change", renderSandbox);
+    }
+    var presets = qa("[data-sb-preset]");
+    for (var p = 0; p < presets.length; p += 1) {
+      (function (btn) {
+        btn.addEventListener("click", function () {
+          applySandboxPreset(btn.getAttribute("data-sb-preset"));
+        });
+      })(presets[p]);
+    }
+    applySandboxPreset("reset");
   }
 
   // --- the clock ----------------------------------------------------------
@@ -1602,10 +1912,20 @@ _VIEWER_JS = """\
       });
     })(jumpButtons[j]);
   }
+  var startJumpButtons = qa("[data-start-jump]");
+  for (var sj = 0; sj < startJumpButtons.length; sj += 1) {
+    (function (btn) {
+      btn.addEventListener("click", function () {
+        jumpToTime(btn.getAttribute("data-start-jump"));
+        show("ward");
+      });
+    })(startJumpButtons[sj]);
+  }
   on("[data-action-acknowledge]", function () { applySimulated("acknowledged"); });
   on("[data-action-assessed]", function () { applySimulated("assessed"); });
   on("[data-action-deferred]", function () { applySimulated("deferred"); });
   wireTiles();
+  wireSandbox();
 
   // Start on the first screen (Start); the user picks a role from there.
   if (screens.length) { show(screens[0].getAttribute("data-screen")); }
@@ -1689,9 +2009,11 @@ body {
   border-radius: 4px;
 }
 .clock, .actions { margin: 8px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.clock-jumps { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 8px; }
+.clock-jumps, .start-jumps { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.clock-jumps { margin-left: 8px; }
 .clock-jump { border-color: var(--accent); }
 .start-headline { font-size: 1.15rem; font-weight: 700; margin: 4px 0; }
+.start-stake { margin: 4px 0 8px; color: var(--ink); }
 .ward-line { color: var(--muted); margin: 0 0 12px; }
 .start-status { margin: 12px 0; }
 .start-metrics {
@@ -1728,7 +2050,37 @@ body {
 }
 .start-bed-id { font-weight: 700; margin-right: 4px; }
 .start-bed-note { color: var(--muted); }
-.start-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.start-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; align-items: center; }
+.sandbox-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 14px 0;
+}
+.sb-title { margin: 0 0 4px; font-size: 1rem; }
+.sb-sub { margin: 0 0 10px; color: var(--muted); font-size: 0.9rem; }
+.sb-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.sb-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+.sb-controls { display: grid; gap: 8px; }
+.sb-field { display: flex; flex-direction: column; gap: 3px; font-size: 0.85rem; color: var(--muted); }
+.sb-field select {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+.sb-output {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+}
 .site-footer {
   padding: 8px 12px 16px;
   border-top: 1px solid var(--line);
@@ -1822,6 +2174,7 @@ def render_html(model: dict) -> str:
     static = model["static"]
     label = _escape_text(static["persistent_label"])
     headline = static.get("start_headline", START_HEADLINE)
+    stake = static.get("start_stake", START_STAKE)
     jumps = static.get("scenario_jumps", SCENARIO_JUMPS)
 
     # One tile per physical bed, in bed-number order (AC-ORDER-1, AC-S2-grid).
@@ -1831,9 +2184,10 @@ def render_html(model: dict) -> str:
     )
     bed_grid = f'<ul class="bed-grid" data-bed-grid>{tiles}</ul>'
 
-    # The five screens. Screen 1 opens directly with the headline, ward line,
-    # live ICU ward status and role buttons above the fold; the full intended-use
-    # and verification notice sits in a compact collapsed <details> footer so it
+    # The five screens. Screen 1 opens directly with the headline, alarm-fatigue
+    # stake, ward line, live ICU ward status, role buttons, 1-click scenario
+    # jumps, and the interactive custom-bed sandbox; the full intended-use and
+    # verification notice sits in a compact collapsed <details> footer so it
     # never blocks entry while remaining one click away and verbatim in the DOM.
     # Screens 2-5 each carry the simulated-clock controls (including the 3
     # one-click scenario jumps) and a "Start" button back to Screen 1.
@@ -1842,13 +2196,17 @@ def render_html(model: dict) -> str:
         "start": (
             f'<p class="start-headline" data-start-headline>'
             f'{_escape_text(headline)}</p>'
+            f'<p class="start-stake" data-start-stake>'
+            f'{_escape_text(stake)}</p>'
             f'<p class="ward-line" data-ward-line>'
             f'{_escape_text(static["ward_line"])}</p>'
             '<div class="start-status" data-start-status></div>'
             '<div class="start-actions">'
             '<input type="button" data-role-nurse value="Night nurse view">'
             '<input type="button" data-role-doctor value="On-call doctor view">'
-            '</div>'
+            + _render_start_jumps(jumps)
+            + '</div>'
+            + _render_custom_bed_sandbox()
         ),
         "ward": (
             _render_start_nav()

@@ -357,10 +357,13 @@ def test_single_visually_hidden_h1_and_no_focus_on_load(page: Page) -> None:
 
 
 def test_start_screen_decluttered_and_disclaimer_details_toggles(page: Page) -> None:
-    """Screen 1 shows headline and live ward status on entry; disclaimer <details>
-    starts collapsed and toggles open/closed cleanly."""
+    """Screen 1 shows headline, alarm-fatigue stake, and live ward status on entry;
+    disclaimer <details> starts collapsed and toggles open/closed cleanly."""
 
     expect(page.locator('[data-screen="start"] [data-start-headline]')).to_be_visible()
+    expect(page.locator('[data-screen="start"] [data-start-stake]')).to_contain_text(
+        "187 audible alarms/bed/day"
+    )
     expect(page.locator('[data-screen="start"] [data-start-status]')).to_be_visible()
     expect(page.locator('[data-screen="start"] [data-start-bed]')).to_have_count(17)
     expect(page.locator("[data-role-nurse]")).to_be_visible()
@@ -383,14 +386,15 @@ def test_start_screen_decluttered_and_disclaimer_details_toggles(page: Page) -> 
 def test_scenario_jump_buttons_land_on_verified_states(page: Page) -> None:
     """Each one-click Scenario Jump button jumps directly to its verified state."""
 
-    page.locator("[data-role-nurse]").click()
+    # Direct 1-click jump from Screen 1 to Bed 1 R1 @ 22:20.
+    page.locator('[data-start-jump="22:20"]').click()
     ward = page.locator('[data-screen="ward"]:not([hidden])')
+    expect(ward).to_be_visible()
     display = ward.locator("[data-clock-display]")
-
-    ward.locator('[data-clock-jump="22:20"]').click()
     expect(display).to_have_text(re.compile(r" 22:20$"))
     expect(page.locator('[data-bed="1"] [data-rule="R1"] .state-word')).to_have_text("met")
 
+    # One-click jump on working screen to Bed 9 Stale Feed @ 01:15.
     ward.locator('[data-clock-jump="01:15"]').click()
     expect(display).to_have_text(re.compile(r" 01:15$"))
     expect(page.locator("[data-feed-banner]")).to_be_visible()
@@ -400,8 +404,51 @@ def test_scenario_jump_buttons_land_on_verified_states(page: Page) -> None:
         "stale_data"
     )
 
-    ward.locator('[data-clock-jump="02:20"]').click()
-    expect(display).to_have_text(re.compile(r" 02:20$"))
-    expect(page.locator('[data-bed="4"] [data-rule="R2a"] .state-word')).to_have_text("met")
+    # One-click jump on working screen to Bed 6 Late Fluid @ 02:00.
+    ward.locator('[data-clock-jump="02:00"]').click()
+    expect(display).to_have_text(re.compile(r" 02:00$"))
     expect(page.locator('[data-bed="6"] [data-rule="R2a"] .state-word')).to_have_text("met")
     expect(page.locator('[data-bed="6"] [data-rule="R2b"] .state-word')).to_have_text("met")
+    expect(page.locator("[data-feed-banner]")).to_be_visible()
+
+
+def test_custom_bed_sandbox_evaluates_rules_live(page: Page) -> None:
+    """Screen 1 custom bed sandbox evaluates R1/R2a/R2b/R3 live in-browser."""
+
+    sb = page.locator("[data-sandbox-panel]")
+    out = sb.locator("[data-sb-output]")
+    expect(sb).to_be_visible()
+    expect(out.locator('[data-rule="R1"] .state-word')).to_have_text("not_met")
+    expect(out.locator("[data-sb-silence]")).to_be_visible()
+
+    # Preset: R1 met.
+    sb.locator('[data-sb-preset="r1-met"]').click()
+    expect(out.locator('[data-rule="R1"] .state-word')).to_have_text("met")
+    expect(out.locator('[data-rule="R1"] .approved-message')).to_be_visible()
+    expect(out.locator("[data-sb-silence]")).to_have_count(0)
+
+    # Preset: Combined R2.
+    sb.locator('[data-sb-preset="r2-combined"]').click()
+    expect(out.locator('[data-rule="R2a"] .state-word')).to_have_text("met")
+    expect(out.locator('[data-rule="R2b"] .state-word')).to_have_text("met")
+    expect(out.locator("[data-sb-combined]")).to_be_visible()
+
+    # Tweak feed to stale -> R1/R2a unknown (stale_data), R2b still met.
+    sb.locator("[data-sb-feed]").select_option("stale")
+    expect(out.locator(".bed-feed-chip")).to_be_visible()
+    expect(out.locator('[data-rule="R1"] .state-word')).to_have_text("unknown")
+    expect(out.locator('[data-rule="R1"] .reason-code')).to_have_text("stale_data")
+    expect(out.locator('[data-rule="R2a"] .state-word')).to_have_text("unknown")
+    expect(out.locator('[data-rule="R2b"] .state-word')).to_have_text("met")
+
+    # Tweak pathway to ECMO -> R1/R2a not_applicable, R2b still met.
+    sb.locator("[data-sb-feed]").select_option("fresh")
+    sb.locator("[data-sb-pathway]").select_option("ecmo")
+    expect(out.locator('[data-rule="R1"] .state-word')).to_have_text("not_applicable")
+    expect(out.locator('[data-rule="R2a"] .state-word')).to_have_text("not_applicable")
+    expect(out.locator('[data-rule="R2b"] .state-word')).to_have_text("met")
+
+    # Tweak R3 to overdue -> R3 met with approved overdue wording.
+    sb.locator("[data-sb-r3]").select_option("overdue")
+    expect(out.locator('[data-rule="R3"] .state-word')).to_have_text("met")
+    expect(out.locator('[data-rule="R3"] .approved-message')).to_be_visible()
